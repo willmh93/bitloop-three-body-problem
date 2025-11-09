@@ -87,7 +87,7 @@ struct ThreeBodyProblem_Project : public Project<ThreeBodyProblem_Project>
 {
     static ProjectInfo info() {
         // Categorize your project
-        return ProjectInfo({ "New Projects", "ThreeBodyProblem" });
+        return ProjectInfo({ "Physics", "Three-Body Problem" });
     }
 
     struct UI : Interface {

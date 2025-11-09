@@ -133,8 +133,6 @@ class Sim
 
     [[no_unique_address]] UnstablePolicy<T> unstable_rule;
 
-    double repeatibility(const T pos_tolerance, const T vel_tolerance) const;
-
     void pairwise_gravity(Particle<T>& p, Particle<T>& q, const T G, const T soft2);
     void compute_accels(Particle<T>& a, Particle<T>& b, Particle<T>& c, const T G, const T soft2);
 

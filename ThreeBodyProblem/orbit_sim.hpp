@@ -62,23 +62,6 @@ void SimPlot<T>::draw(Viewport* ctx, float main_alpha, int cur_iter) const
     drawPath(ctx, c_path, main_alpha, Color::yellow, cur_iter);
 }
 
-
-SimTmpl double SimID::repeatibility(const T pos_tolerance, const T vel_tolerance) const
-{
-    //T a_dist = 
-    return 0.0;
-}
-
-//SimTmpl bool SimID::unstable() const
-//{
-//    constexpr T max_mag2 = SimEnv::max_dist * SimEnv::max_dist;
-//    if (a.mag2() > max_mag2) return true;
-//    if (b.mag2() > max_mag2) return true;
-//    if (c.mag2() > max_mag2) return true;
-//    return false;
-//}
-
-
 SimTmpl void SimID::pairwise_gravity(Particle<T>& p, Particle<T>& q, const T G, const T soft2)
 {
     const T rx = q.x - p.x;
