@@ -20,46 +20,61 @@ void SimPlot<T>::recordPositions(const Vec2& a, const Vec2& b, const Vec2& c)
 }
 
 template<class T>
-void SimPlot<T>::drawPath(Viewport* ctx, const std::vector<Vec2>& path, f32 main_alpha, Color col, int cur_iter) const
+void SimPlot<T>::drawPath(Viewport* ctx, const std::vector<Vec2>& path, Color col, int cur_iter, double path_w, double trail_w) const
 {
     if (path.size() < 2) return;
 
-    const Color main_color(col.r, col.g, col.b, (int)(main_alpha * 255.0f));
-    ctx->setStrokeStyle(main_color);
-    ctx->beginPath();
-    ctx->moveTo(path[0]);
-    for (size_t i = 0; i < path.size(); i++)
-    {
-        Vec2 p = path[i];
-        ctx->lineTo(p);
-    }
-    ctx->stroke();
+    bool draw_full_path = (cur_iter >= 0);
 
-    if (cur_iter > 2)
+    // account for fewer path data points than actual iterations
+    cur_iter /= stride;
+
+    const Color main_color(col.r, col.g, col.b, (int)(path_alpha * 255.0f));
+    ctx->setLineWidth(path_w);
+    ctx->setStrokeStyle(main_color);
+    if (draw_full_path)
+        ctx->strokePath(path, 0, std::min((size_t)cur_iter, path.size()));
+    else
+        ctx->strokePath(path);
+
+    constexpr int trail = 150;
+    if (cur_iter > 1)
     {
-        int trail = 150;
-        int i0 = std::max(0, cur_iter - trail);
-        int i1 = cur_iter;
-        f32 fi0 = (f32)i0;
-        f32 fi1 = (f32)i1;
-        for (int i = i0; i < i1; i++)
+        auto comp = ctx->scopedComposite(CompositeOperation::LIGHTER);
+        auto drawTrail = [&](f64 max_w, f32 layer_alpha)
         {
-            f32 f = Math::lerpFactor((f32)i, fi0, fi1);
-            const Color color(col.r, col.g, col.b, (int)(f * 255.0f));
-            ctx->setStrokeStyle(color);
-            ctx->strokeLine(path[i-1], path[i]);
-        }
+            constexpr int fade_step = 10;
+
+            int i0 = std::max(1, cur_iter - trail);
+            int i1 = std::min((int)path.size(), cur_iter);
+            f64 fi0 = (f64)i0;
+            f64 fi1 = (f64)i1;
+            f64 add_w = max_w - path_w;
+            f64 path_alpha = layer_alpha / (f64)(trail / fade_step);
+
+            for (int i = i0; i < i1; i += fade_step)
+            {
+                f64 f = Math::lerpFactor((f64)i, fi0, fi1);
+                Color color(col.r, col.g, col.b, std::max(1, (int)(f * path_alpha)));
+
+                ctx->setLineWidth(path_w + (add_w) * f);
+                ctx->setStrokeStyle(color);
+                ctx->strokePath(path, i, i1);
+            }
+        };
+
+        drawTrail(trail_w, 75);
+        drawTrail(trail_w * 1.5, 10);
+        drawTrail(trail_w * 3, 5);
     }
 }
 
 template<class T>
-void SimPlot<T>::draw(Viewport* ctx, float main_alpha, int cur_iter) const
+void SimPlot<T>::draw(Viewport* ctx, int cur_iter, double path_w, double trail_w) const
 {
-    cur_iter /= stride;
-
-    drawPath(ctx, a_path, main_alpha, Color::red, cur_iter);
-    drawPath(ctx, b_path, main_alpha, Color::green, cur_iter);
-    drawPath(ctx, c_path, main_alpha, Color::yellow, cur_iter);
+    drawPath(ctx, a_path, Color::red, cur_iter, path_w, trail_w);
+    drawPath(ctx, b_path, Color::green, cur_iter, path_w, trail_w);
+    drawPath(ctx, c_path, Color::yellow, cur_iter, path_w, trail_w);
 }
 
 SimTmpl void SimID::pairwise_gravity(Particle<T>& p, Particle<T>& q, const T G, const T soft2)

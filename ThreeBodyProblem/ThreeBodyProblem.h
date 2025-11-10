@@ -17,12 +17,15 @@ struct ThreeBodyProblem_Scene : public Scene<ThreeBodyProblem_Scene>
     // tweakable
     template<class T> 
     using UnstablePolicy                = UnstablePolicy_MaxDist<T>;
-    static constexpr int vel_grid_size  = 5;
-    int iter_lim                        = 300000;
+    static constexpr int vel_grid_size  = 3;
+    int iter_lim                        = 100000;
     flt G                               = flt(1);
     flt max_vel                         = flt(1);
-    flt dt                              = flt(0.002);
-    int animation_speed                 = 10;
+    flt dt                              = flt(0.005);
+    int animation_speed                 = 5;
+
+    static constexpr f64 particle_r = 0.0075;// 2.0;
+    static constexpr f64 glow_r = 0.08;// 24.0;
 
     // determine types
     using SimEnv  = SimEnv<flt>;
@@ -44,7 +47,7 @@ struct ThreeBodyProblem_Scene : public Scene<ThreeBodyProblem_Scene>
 
     /// ─────── methods ───────
     bool hasChosenPoint() const { return chosen_point != undefined_pos; }
-    void launchSim(vec2 c, vec2 vel_a, vec2 vel_b, vec2 vel_c);
+    void launchSim(vec2 c, vec2 vel_a, vec2 vel_b, vec2 vel_c, double path_alpha = 0.08);
     
 
     /// ─────── launch config (overridable by Project) ───────
