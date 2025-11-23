@@ -14,14 +14,15 @@ struct ThreeBodyProblem_Scene : public Scene<ThreeBodyProblem_Scene>
     using flt = f64;
     using vec2 = Vec2<flt>;
 
-    // tweakable
-    template<class T> 
-    using UnstablePolicy                = UnstablePolicy_MaxDist<T>;
-    static constexpr int vel_grid_size  = 3;
-    int iter_lim                        = 100000;
-    flt G                               = flt(1);
-    flt max_vel                         = flt(1);
-    flt dt                              = flt(0.005);
+    // adjustable stop policies:
+    //template<class T> using StopPolicy  = StopPolicy_Loopable<T>;
+    template<class T> using StopPolicy  = StopPolicy_MaxDist<T>;
+
+    static constexpr int vel_grid_size  = 7;
+    int iter_lim                        = 20000;
+    flt G                               = 1.0f;
+    flt max_vel                         = 1.0f;//1.0f;
+    flt dt                              = 0.005f;
     int animation_speed                 = 5;
 
     static constexpr f64 particle_r = 0.0075;// 2.0;
@@ -30,8 +31,8 @@ struct ThreeBodyProblem_Scene : public Scene<ThreeBodyProblem_Scene>
     // determine types
     using SimEnv  = SimEnv<flt>;
     using SimPlot = SimPlot<flt>;
-    using Sim     = Sim<flt, UnstablePolicy>;
-    using SimGrid = SimGrid<flt, vel_grid_size, UnstablePolicy>;
+    using Sim     = Sim<flt, StopPolicy>;
+    using SimGrid = SimGrid<flt, vel_grid_size, StopPolicy>;
 
     const vec2 undefined_pos = vec2::highest();
 
@@ -51,10 +52,12 @@ struct ThreeBodyProblem_Scene : public Scene<ThreeBodyProblem_Scene>
     
 
     /// ─────── launch config (overridable by Project) ───────
-    struct Config { /* double gravity = 9.8; */ };
+    struct Config {};
 
     ThreeBodyProblem_Scene(Config& info [[maybe_unused]])
-        // : gravity(info.gravity)
+    {}
+
+    ~ThreeBodyProblem_Scene()
     {}
 
     /// ─────── Thread-safe UI for editing Scene inputs with ImGui ───────

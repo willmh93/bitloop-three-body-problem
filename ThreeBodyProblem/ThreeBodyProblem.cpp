@@ -14,7 +14,8 @@ void ThreeBodyProblem_Project::UI::sidebar()
 
 void ThreeBodyProblem_Project::projectPrepare(Layout& layout)
 {
-    layout << create<ThreeBodyProblem_Scene>(viewport_count);
+    for (int i = 0; i < viewport_count; i++)
+        layout << create<ThreeBodyProblem_Scene>();
 }
 
 /// ─────────────────────── scene ───────────────────────
@@ -79,6 +80,8 @@ void ThreeBodyProblem_Scene::sceneMounted(Viewport* ctx)
 
     navigator.setTarget(camera);
     navigator.setDirectCameraPanning(true);
+
+    best_plot.setPathAlpha(0.2);
 }
 
 void ThreeBodyProblem_Scene::sceneDestroy()
@@ -103,7 +106,7 @@ void ThreeBodyProblem_Scene::launchSim(vec2 c, vec2 vel_a, vec2 vel_b, vec2 vel_
 {
     chosen_point = c;
     best_plot.setPathAlpha(path_alpha);
-    best_sim.setup(c, vel_a, vel_b, vel_c);
+    best_sim.setup(env, c, vel_a, vel_b, vel_c);
     best_sim.plot(env, best_plot);
 }
 
@@ -120,19 +123,13 @@ void ThreeBodyProblem_Scene::viewportDraw(Viewport* ctx) const
     ctx->transform(camera.getTransform());
     ctx->drawWorldAxis(0.2, 0.00, 0.3);
 
-    //ctx->worldHudMode();
     ctx->worldMode();
     ctx->setLineCap(LineCap::CAP_ROUND);
-
 
     best_plot.draw(ctx, hasChosenPoint() ? best_sim.curIter() : -1, particle_r, particle_r*3);
 
     if (hasChosenPoint())
     {
-        auto _c = ctx->scopedComposite(CompositeOperation::LIGHTER);
-
-
-
         auto drawParticle = [&](vec2 p, Color c, f64 glow_a, f64 particle_r, f64 glow_r, int steps=7)
         {
             Color c1 = Color(c, 0);
@@ -146,10 +143,15 @@ void ThreeBodyProblem_Scene::viewportDraw(Viewport* ctx) const
             ctx->fillEllipse(p, particle_r, c);
         };
 
+        auto _c = ctx->scopedComposite(CompositeOperation::LIGHTER);
         drawParticle(best_sim.particleA(), Color::red, 0.5, particle_r, glow_r);
         drawParticle(best_sim.particleB(), Color::green, 0.5, particle_r, glow_r);
         drawParticle(best_sim.particleC(), Color::yellow, 0.5, particle_r, glow_r);
     }
+
+    ctx->stageMode();
+    ctx->drawCursor(mouse->stage_x, mouse->stage_y);
+
 }
 
 void ThreeBodyProblem_Scene::onEvent(Event e)
@@ -169,15 +171,20 @@ void ThreeBodyProblem_Scene::onPointerDown(PointerEvent e)
         sims.setup(chosen_point);
         sims.run();
 
-        sims.plotBest(best_plot);
+        //if (sims.bestStability() >= UNDETERMINED)
+        {
+            sims.plotBest(best_plot);
 
-
-        best_sim = sims.bestSimConfig();
+            best_sim = sims.bestSimConfig();
+            best_plot.setPathAlpha(0.15);
+        }
     }
     else // unlock chosen point (go back to explore mode)
+    {
         chosen_point = undefined_pos;
+        best_plot.setPathAlpha(0.2);
+    }
 
-    best_plot.setPathAlpha(0.08);
 }
 
 void ThreeBodyProblem_Scene::onPointerMove(PointerEvent e)
@@ -189,9 +196,12 @@ void ThreeBodyProblem_Scene::onPointerMove(PointerEvent e)
         SimGrid sims(env);
         sims.setup(wp);
         sims.run();
-        sims.plotBest(best_plot);
 
-        best_sim = sims.bestSimConfig();
+        if (sims.bestStability() >= UNDETERMINED)
+        {
+            sims.plotBest(best_plot);
+            best_sim = sims.bestSimConfig();
+        }
     }
 }
 

@@ -5,6 +5,13 @@ SIM_BEG;
 
 using namespace bl;
 
+enum StopResult
+{
+    UNSTABLE,
+    UNDETERMINED,
+    STABLE
+};
+
 template<class T>
 struct Particle : public Vec2<T> 
 {
@@ -35,9 +42,9 @@ public:
 template<class T>
 struct SimEnv
 {
-    static constexpr int escape_freq = 10; // how often we check for escape
     static constexpr int max_dist = 5; // max dist from origin to be considered unstable
 
+    int escape_freq = 10; // how often we check for escape
     int max_iter;
     T max_vel, dt;
     T G{ 1 };
@@ -60,36 +67,47 @@ struct SimEnv
 };
 
 template<class T> 
-struct UnstablePolicy_None
+struct StopPolicy_None
 {
-    void init(const Particle<T>&, const Particle<T>&, const Particle<T>&) {}
-    bool unstable(const Particle<T>&, const Particle<T>&, const Particle<T>&) const 
+    void init(const SimEnv<T>*, const Particle<T>&, const Particle<T>&, const Particle<T>&) 
+    {}
+
+    StopResult stability(int iter, const Particle<T>&, const Particle<T>&, const Particle<T>&) const
     {
-        return false;
+        return StopResult::UNDETERMINED;
     }
 };
 
 template<class T>
-struct UnstablePolicy_MaxDist
+struct StopPolicy_MaxDist
 {
-    void init(const Particle<T>&, const Particle<T>&, const Particle<T>&) {}
-    bool unstable(const Particle<T>& a, const Particle<T>& b, const Particle<T>& c) const
+    int max_iter;
+    void init(const SimEnv<T>* env, const Particle<T>&, const Particle<T>&, const Particle<T>&) 
+    {
+        max_iter = env->max_iter;
+    }
+
+    StopResult stability(int iter, const Particle<T>& a, const Particle<T>& b, const Particle<T>& c) const
     {
         constexpr T max_mag2 = SimEnv<T>::max_dist * SimEnv<T>::max_dist;
-        if (a.mag2() > max_mag2) return true;
-        if (b.mag2() > max_mag2) return true;
-        if (c.mag2() > max_mag2) return true;
-        return false;
+        if (a.mag2() > max_mag2) return StopResult::UNSTABLE;
+        if (b.mag2() > max_mag2) return StopResult::UNSTABLE;
+        if (c.mag2() > max_mag2) return StopResult::UNSTABLE;
+        if (iter >= max_iter) return StopResult::STABLE;
+        return StopResult::UNDETERMINED;
     }
 };
 
 template<class T>
-struct UnstablePolicy_Loopable
+struct StopPolicy_Loopable
 {
+    SimEnv<T>* env;
     Particle<T> beg_a, beg_b, beg_c;
 
-    void init(const Particle<T>& a, const Particle<T>& b, const Particle<T>& c)
+    int max_iter;
+    void init(const SimEnv<T>* env, const Particle<T>& a, const Particle<T>& b, const Particle<T>& c)
     {
+        max_iter = env->max_iter;
         beg_a = a;
         beg_b = b;
         beg_c = c;
@@ -97,35 +115,48 @@ struct UnstablePolicy_Loopable
 
     bool similar(const Particle<T>& beg, const Particle<T>& now) const
     {
-        constexpr T max_dist2 = 0.03 * 0.03;
-        constexpr T max_vel2 = 0.03 * 0.03;
+        constexpr T max_dist2 = bl::sq(0.02);
+        //constexpr T max_vel2 = 0.03 * 0.03;
 
         const Vec2<T> delta_pos(now.x - beg.x, now.y - beg.y);
         if (delta_pos.mag2() > max_dist2) return false;
 
-        const Vec2<T> delta_vel(now.vx - beg.vx, now.vy - beg.vy);
-        if (delta_vel.mag2() > max_vel2) return false;
+
+        //const Vec2<T> delta_vel(now.vx - beg.vx, now.vy - beg.vy);
+        if (std::abs((now.vx / beg.vx) - 1) > 0.1) return false;
+        if (std::abs((now.vy / beg.vy) - 1) > 0.1) return false;
+        //if (delta_vel.mag2() > max_vel2) return false;
 
         return true;
     }
 
-    bool unstable(const Particle<T>& a, const Particle<T>& b, const Particle<T>& c) const
+    StopResult stability(int iter, const Particle<T>& a, const Particle<T>& b, const Particle<T>& c) const
     {
+        if (iter < 120)
+            return StopResult::UNDETERMINED;
+
+        constexpr T max_mag2 = SimEnv<T>::max_dist * SimEnv<T>::max_dist;
+        if (a.mag2() > max_mag2) return StopResult::UNSTABLE;
+        if (b.mag2() > max_mag2) return StopResult::UNSTABLE;
+        if (c.mag2() > max_mag2) return StopResult::UNSTABLE;
+
         if (similar(beg_a, a) &&
             similar(beg_b, b) &&
             similar(beg_c, c))
         {
-            return true;
+            return StopResult::STABLE;
         }
-        return false;
+
+        if (iter >= max_iter) return StopResult::UNSTABLE;
+        return StopResult::UNDETERMINED;
     }
 };
 
-template<class T, template<class> class UnstablePolicy = UnstablePolicy_MaxDist>
+template<class T, template<class> class StopPolicy = StopPolicy_MaxDist>
 class Sim
 {
-    #define SimTmpl  template<class T, template<class> class UnstablePolicy>
-    #define SimID    Sim<T, UnstablePolicy>
+    #define SimTmpl  template<class T, template<class> class StopPolicy>
+    #define SimID    Sim<T, StopPolicy>
 
     using SimEnv = SimEnv<T>;
     using SimPlot = SimPlot<T>;
@@ -134,7 +165,7 @@ class Sim
     Particle<T> a, b, c;
     int iter = 0;
 
-    [[no_unique_address]] UnstablePolicy<T> unstable_rule;
+    [[no_unique_address]] StopPolicy<T> unstable_rule;
 
     void pairwise_gravity(Particle<T>& p, Particle<T>& q, const T G, const T soft2);
     void compute_accels(Particle<T>& a, Particle<T>& b, Particle<T>& c, const T G, const T soft2);
@@ -147,12 +178,12 @@ public:
         return (a == r.a) && (b == r.b) && (c == r.c);
     }
 
-    void setup(Vec2 pos, Vec2 vel_a, Vec2 vel_b, Vec2 vel_c);
+    void setup(const SimEnv& env, Vec2 pos, Vec2 vel_a, Vec2 vel_b, Vec2 vel_c);
     void progress(const SimEnv& env);
-    bool unstable() const       { return unstable_rule.unstable(a, b, c); }
-    bool escaped(int iter_lim)  { return iter >= (iter_lim - SimEnv::escape_freq); }
-    int  curIter() const        { return iter; }
-
+    StopResult stability() const      { return unstable_rule.stability(iter, a, b, c); }
+    bool       escaped(int iter_lim)  { return iter >= (iter_lim - SimEnv::escape_freq); }
+    int        curIter() const        { return iter; }
+               
 
     //int run(const SimEnv& env);
 
@@ -167,15 +198,15 @@ public:
 template<
     class T, 
     int VEL_GRID_DIM, 
-    template<class> class UnstablePolicy = UnstablePolicy_MaxDist,
+    template<class> class StopPolicy = StopPolicy_MaxDist,
     bool MULTI_THREAD=true
 >
 struct SimGrid
 {
-    #define SimGridTmpl  template<class T, int VEL_GRID_DIM, template<class> class UnstablePolicy, bool MULTI_THREAD>
-    #define SimGridID    SimGrid<T, VEL_GRID_DIM, UnstablePolicy, MULTI_THREAD>
+    #define SimGridTmpl  template<class T, int VEL_GRID_DIM, template<class> class StopPolicy, bool MULTI_THREAD>
+    #define SimGridID    SimGrid<T, VEL_GRID_DIM, StopPolicy, MULTI_THREAD>
 
-    using Sim = Sim<T, UnstablePolicy>;
+    using Sim = Sim<T, StopPolicy>;
     using SimPlot = SimPlot<T>;
     using SimEnv = SimEnv<T>;
     using Vec2 = Vec2<T>;
@@ -186,8 +217,7 @@ struct SimGrid
     static constexpr int SIM_COUNT = VEL_GRID_LEN * VEL_GRID_LEN;
 
     Sim sims[SIM_COUNT];
-    bool any_escaped = false;
-    int best_iter = 0;
+    int best_stability = 0;
     int best_sim = 0;
     Vec2 start_pos{};
 
@@ -202,8 +232,7 @@ struct SimGrid
     void plotBest(SimPlot& plot);
 
     // call after run()
-    bool bestStable() const { return !any_escaped; }
-    int  bestIter() const { return best_iter; }
+    int  bestStability() const { return best_stability; }
     Sim  bestSimConfig() { Sim s; setupSim(best_sim, s); return s; }
 };
 
