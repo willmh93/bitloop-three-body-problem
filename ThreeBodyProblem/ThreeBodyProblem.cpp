@@ -225,7 +225,7 @@ void ThreeBodyProblem_Scene::viewportDraw(Viewport* ctx) const
     ctx->drawImage(bmp);
     ctx->drawWorldAxis(0.1, 0.00, 0.3);
 
-    ctx->worldMode();
+    ctx->worldHudMode();
     ctx->setLineCap(LineCap::CAP_ROUND);
 
     current_plot.draw(ctx, playingAnimation() ? sim_animation.curIter() : -1, particle_r, particle_r*3);

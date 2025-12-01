@@ -27,8 +27,10 @@ struct ThreeBodyProblem_Scene : public Scene<ThreeBodyProblem_Scene>
     flt dt = 0.02f;// 0.01f;//
     int animation_speed                 = 5;
 
-    static constexpr f64 particle_r = 0.0075;// 2.0;
-    static constexpr f64 glow_r = 0.08;// 24.0;
+    //static constexpr f64 particle_r = 0.0075;// 2.0;
+    //static constexpr f64 glow_r = 0.08;// 24.0;
+    static constexpr f64 particle_r = 2.0;
+    static constexpr f64 glow_r = 24.0;
 
     // aliases
     using SimEnv  = SimEnv<flt>;
