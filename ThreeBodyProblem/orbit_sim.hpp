@@ -185,7 +185,7 @@ SimTmpl int SimID::plot(const SimEnv& env, SimPlot& plot) const
             plot.recordPositions(s.particleA(), s.particleB(), s.particleC());
 
         s.progress(env);
-        if (i % env.escape_freq == 0 && s.stability() != StopResult::UNDETERMINED)
+        if (i % env.escape_freq == 0 && (int)s.stability().type & (int)StopResult::ABORT_MASK)
             break;
     }
     return iter;
@@ -230,7 +230,7 @@ SimGridTmpl void SimGridID::startingVelocities(
 
 SimGridTmpl void SimGridID::run()
 {
-    best_stability = 0;
+    best_stability = StopResult(StopResult::INVALID, -1.0);
     best_sim = 0;
 
     if constexpr (MULTI_THREAD)
@@ -244,7 +244,7 @@ SimGridTmpl void SimGridID::run()
                 
                 for (int i = 0; i < env.max_iter; i++) {
                     sim.progress(env);
-                    if (i % env.escape_freq == 0 && sim.stability() != StopResult::UNDETERMINED)
+                    if (i % env.escape_freq == 0 && (int)sim.stability().type & (int)StopResult::ABORT_MASK)
                         break;
                 }
             });
@@ -255,14 +255,15 @@ SimGridTmpl void SimGridID::run()
             results[s].get(); // wait for sim to finish
 
             Sim& sim = sims[s];
-            //bool escaped = sim.escaped(env.max_iter);
-            //bool unstable = sim.escaped(env.max_iter);
-            //if (sim.curIter() > best_iter)
-            if (sim.stability() > best_stability)
+            StopResult sim_stability = sim.stability();
+
+            if (sim_stability.type == StopResult::INVALID)
+                continue;
+
+            if (StopPolicy<T>::isBetterResult(sim_stability, best_stability))
             {
                 best_sim = s;
                 best_stability = sim.stability();
-                //best_iter = sim.curIter();
             }
         }
     }
@@ -273,31 +274,21 @@ SimGridTmpl void SimGridID::run()
             Sim& sim = sims[s];
             for (int i = 0; i < env.max_iter; i++) {
                 sim.progress(env);
-                if (i % env.escape_freq == 0 && sim.stability() != StopResult::UNDETERMINED)
+                if (i % env.escape_freq == 0 && (int)sim.stability().type & (int)StopResult::ABORT_MASK)
                     break;
             }
 
-            if (sim.stability() > best_stability)
+            StopResult sim_stability = sim.stability();
+            if (sim_stability.type == StopResult::INVALID)
+                continue;
+
+            if (StopPolicy::isBetterResult(sim.stability(), best_stability))
             {
                 best_sim = s;
                 best_stability = sim.stability();
-                //best_iter = sim.curIter();
             }
         }
     }
-}
-
-SimGridTmpl void SimGridID::plotBest(SimPlot& plot)
-{
-    // plot best
-    Sim best = bestSimConfig();
-    best.plot(env, plot);
-    //plot.clear();
-    //for (int i = 0; i < env.max_iter; i++)
-    //{
-    //    plot.recordPositions(best.particleA(), best.particleB(), best.particleC());
-    //    if (!best.progress(env)) break;
-    //}
 }
 
 SIM_END;

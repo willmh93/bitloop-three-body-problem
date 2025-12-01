@@ -5,11 +5,27 @@ SIM_BEG;
 
 using namespace bl;
 
-enum StopResult
+
+
+struct StopResult
 {
-    UNSTABLE,
-    UNDETERMINED,
-    STABLE
+    enum StopResultType
+    {
+        INVALID=1,      // sim exclude from possible results (e.g. non-periodic orbit),
+        UNSTABLE=2,     // sim could be unstable, but still included as a "near-stable" result
+        UNDETERMINED=4, // sim running, not known if stable or not
+        INCONCLUSIVE=8, // sim finished, but still not known if stable or not
+        STABLE=16,
+
+        ABORT_MASK = INVALID | STABLE | UNSTABLE
+    };
+
+    StopResultType type;
+    f64 iter;
+
+    StopResult(StopResultType _type= INVALID, f64 _stability=-1.0) :
+        type(_type), iter(_stability)
+    { }
 };
 
 template<class T>
@@ -42,7 +58,7 @@ public:
 template<class T>
 struct SimEnv
 {
-    static constexpr int max_dist = 5; // max dist from origin to be considered unstable
+    static constexpr int max_dist = 50;// 5; // max dist from origin to be considered unstable
 
     int escape_freq = 10; // how often we check for escape
     int max_iter;
@@ -76,6 +92,11 @@ struct StopPolicy_None
     {
         return StopResult::UNDETERMINED;
     }
+
+    static bool isBetterResult(StopResult result, StopResult other)
+    {
+        return result.iter > other.iter;
+    }
 };
 
 template<class T>
@@ -90,16 +111,21 @@ struct StopPolicy_MaxDist
     StopResult stability(int iter, const Particle<T>& a, const Particle<T>& b, const Particle<T>& c) const
     {
         constexpr T max_mag2 = SimEnv<T>::max_dist * SimEnv<T>::max_dist;
-        if (a.mag2() > max_mag2) return StopResult::UNSTABLE;
-        if (b.mag2() > max_mag2) return StopResult::UNSTABLE;
-        if (c.mag2() > max_mag2) return StopResult::UNSTABLE;
-        if (iter >= max_iter) return StopResult::STABLE;
-        return StopResult::UNDETERMINED;
+        if (a.mag2() > max_mag2) return StopResult(StopResult::UNSTABLE, iter);
+        if (b.mag2() > max_mag2) return StopResult(StopResult::UNSTABLE, iter);
+        if (c.mag2() > max_mag2) return StopResult(StopResult::UNSTABLE, iter);
+        if (iter >= max_iter) return StopResult(StopResult::UNSTABLE, iter);
+        return StopResult(StopResult::UNDETERMINED, iter);
+    }
+
+    static bool isBetterResult(StopResult result, StopResult other)
+    {
+        return result.iter > other.iter;
     }
 };
 
 template<class T>
-struct StopPolicy_Loopable
+struct StopPolicy_Periodic
 {
     SimEnv<T>* env;
     Particle<T> beg_a, beg_b, beg_c;
@@ -115,14 +141,12 @@ struct StopPolicy_Loopable
 
     bool similar(const Particle<T>& beg, const Particle<T>& now) const
     {
-        constexpr T max_dist2 = bl::sq(0.02);
+        constexpr T max_dist2 = bl::sq(0.01);
         //constexpr T max_vel2 = 0.03 * 0.03;
 
         const Vec2<T> delta_pos(now.x - beg.x, now.y - beg.y);
         if (delta_pos.mag2() > max_dist2) return false;
 
-
-        //const Vec2<T> delta_vel(now.vx - beg.vx, now.vy - beg.vy);
         if (std::abs((now.vx / beg.vx) - 1) > 0.1) return false;
         if (std::abs((now.vy / beg.vy) - 1) > 0.1) return false;
         //if (delta_vel.mag2() > max_vel2) return false;
@@ -133,22 +157,35 @@ struct StopPolicy_Loopable
     StopResult stability(int iter, const Particle<T>& a, const Particle<T>& b, const Particle<T>& c) const
     {
         if (iter < 120)
-            return StopResult::UNDETERMINED;
+            return StopResult(StopResult::UNDETERMINED, iter);
 
         constexpr T max_mag2 = SimEnv<T>::max_dist * SimEnv<T>::max_dist;
-        if (a.mag2() > max_mag2) return StopResult::UNSTABLE;
-        if (b.mag2() > max_mag2) return StopResult::UNSTABLE;
-        if (c.mag2() > max_mag2) return StopResult::UNSTABLE;
+        if (a.mag2() > max_mag2) return StopResult(StopResult::INVALID, iter);
+        if (b.mag2() > max_mag2) return StopResult(StopResult::INVALID, iter);
+        if (c.mag2() > max_mag2) return StopResult(StopResult::INVALID, iter);
 
         if (similar(beg_a, a) &&
             similar(beg_b, b) &&
             similar(beg_c, c))
         {
-            return StopResult::STABLE;
+            return StopResult(StopResult::STABLE, iter);
         }
 
-        if (iter >= max_iter) return StopResult::UNSTABLE;
-        return StopResult::UNDETERMINED;
+        if (iter >= max_iter) return StopResult(StopResult::INVALID, iter);
+        return StopResult(StopResult::UNDETERMINED, iter);
+    }
+
+    static bool isBetterResult(StopResult result, StopResult other)
+    {
+        if (result.type == other.type)
+        {
+            if (result.type == StopResult::STABLE)
+                return (result.iter < other.iter); // For now, favour smaller loops as they're cleaner/simpler
+            else
+                return (result.type > other.type);
+        }
+        
+        return (result.type > other.type);
     }
 };
 
@@ -173,8 +210,9 @@ class Sim
 public:
 
     Sim() = default;
-    Sim(const Sim<T>& r) : a(r.a), b(r.b), c(r.c) {}
-    bool operator ==(const Sim<T>& r) const {
+    Sim(const Sim<T, StopPolicy>& r) : a(r.a), b(r.b), c(r.c), unstable_rule(r.unstable_rule)
+    {}
+    bool operator ==(const Sim<T, StopPolicy>& r) const {
         return (a == r.a) && (b == r.b) && (c == r.c);
     }
 
@@ -216,8 +254,11 @@ struct SimGrid
     static constexpr int VEL_GRID_LEN = (VEL_GRID_DIM * VEL_GRID_DIM);
     static constexpr int SIM_COUNT = VEL_GRID_LEN * VEL_GRID_LEN;
 
+    [[no_unique_address]] StopPolicy<T> unstable_rule;
+
     Sim sims[SIM_COUNT];
-    int best_stability = 0;
+    //int best_stability = 0;
+    StopResult best_stability;
     int best_sim = 0;
     Vec2 start_pos{};
 
@@ -228,12 +269,9 @@ struct SimGrid
     void startingVelocities(int sim_i, Vec2& vel_a, Vec2& vel_b, Vec2& vel_c);
     void run(); // progress to env.max_iter (or until all unstable)
 
-    // treats current state as starting state, doesn't affect 'this' object's sims
-    void plotBest(SimPlot& plot);
-
     // call after run()
-    int  bestStability() const { return best_stability; }
-    Sim  bestSimConfig() { Sim s; setupSim(best_sim, s); return s; }
+    StopResult bestStability() const { return best_stability; }
+    Sim        bestSimConfig() { Sim s; setupSim(best_sim, s); return s; }
 };
 
 SIM_END;
