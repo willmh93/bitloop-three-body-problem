@@ -20,7 +20,7 @@ struct ThreeBodyProblem_Scene : public Scene<ThreeBodyProblem_Scene>
     template<class T> using StopPolicy  = StopPolicy_MaxDist<T>;
     //template<class T> using StopPolicy  = StopPolicy_Periodic<T>;
 
-    static constexpr int vel_grid_size  = 8;
+    static constexpr int vel_grid_size  = 5;
     int iter_lim                        = 200000;
     flt G                               = 1.0f;
     flt max_vel                         = 1.0f;//1.0f;

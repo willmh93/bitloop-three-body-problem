@@ -282,7 +282,7 @@ SimGridTmpl void SimGridID::run()
             if (sim_stability.type == StopResult::INVALID)
                 continue;
 
-            if (StopPolicy::isBetterResult(sim.stability(), best_stability))
+            if (StopPolicy<T>::isBetterResult(sim.stability(), best_stability))
             {
                 best_sim = s;
                 best_stability = sim.stability();
