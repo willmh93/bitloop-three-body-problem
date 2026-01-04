@@ -24,20 +24,25 @@ void ThreeBodyProblem_Project::projectPrepare(Layout& layout)
 
 void ThreeBodyProblem_Scene::UI::sidebar()
 {
-    if (ImGui::Section("View", true))
+    bl_scoped(interactive_enabled);
+    ImGui::Checkbox("Interactive", &interactive_enabled);
+
+    if (ImGui::CollapsingHeaderBox("View", true))
     {
         // imgui camera controls
         bl_scoped(camera);
         camera.populateUI();
+        ImGui::EndCollapsingHeaderBox();
     }
 
-    if (ImGui::Section("Animation", true))
+    if (ImGui::CollapsingHeaderBox("Animation"))
     {
         bl_scoped(animation_speed);
         ImGui::SliderInt("Animation Speed", &animation_speed, 1, 200);
+        ImGui::EndCollapsingHeaderBox();
     }
 
-    if (ImGui::Section("Presets", true))
+    if (ImGui::CollapsingHeaderBox("Presets"))
     {
         if (ImGui::Button("Figure-Eight"))
         {
@@ -50,9 +55,10 @@ void ThreeBodyProblem_Scene::UI::sidebar()
                     0.0);
             });
         }
+        ImGui::EndCollapsingHeaderBox();
     }
 
-    if (ImGui::Section("Stats", true))
+    if (ImGui::CollapsingHeaderBox("Stats"))
     {
         if (ImGui::BeginTable("sim_stats", 2, ImGuiTableFlags_SizingStretchProp))
         {
@@ -64,9 +70,11 @@ void ThreeBodyProblem_Scene::UI::sidebar()
 
             ImGui::EndTable();
         }
+        ImGui::EndCollapsingHeaderBox();
     }
 
     // Screener
+    if (ImGui::CollapsingHeaderBox("Screener"))
     {
         bl_pull(results_cstr);
         bl_scoped(selected_result);
@@ -90,6 +98,7 @@ void ThreeBodyProblem_Scene::UI::sidebar()
             std::ofstream out("results.bin", std::ios::binary);
             out.write((const char*)results.data(), sizeof(Sim)*results.size());
         }
+        ImGui::EndCollapsingHeaderBox();
     }
 }
 
@@ -163,7 +172,8 @@ void ThreeBodyProblem_Scene::viewportProcess(
 {
     int iw = (int)ctx->width();
     int ih = (int)ctx->height();
-    bmp.setBitmapSize(iw, ih);
+    //bmp.setBitmapSize(iw, ih);
+    bmp.setBitmapSize(256, 256);
     bmp.setStageRect(0, 0, iw, ih);
 
     if (scanning)
@@ -225,40 +235,48 @@ void ThreeBodyProblem_Scene::viewportDraw(Viewport* ctx) const
     ctx->drawImage(bmp);
     ctx->drawWorldAxis(0.1, 0.00, 0.3);
 
-    ctx->worldHudMode();
-    ctx->setLineCap(LineCap::CAP_ROUND);
-
-    current_plot.draw(ctx, playingAnimation() ? sim_animation.curIter() : -1, particle_r, particle_r*3);
-
-    if (playingAnimation())
+    if (interactive_enabled)
     {
-        auto drawParticle = [&](vec2 p, Color c, f64 glow_a, f64 particle_r, f64 glow_r, int steps=7)
+        ctx->worldHudMode();
+        ctx->setLineCap(LineCap::CAP_ROUND);
+
+        current_plot.draw(ctx, playingAnimation() ? sim_animation.curIter() : -1, particle_r, particle_r*3);
+
+        if (playingAnimation())
         {
-            Color c1 = Color(c, 0);
-            Color c0 = Color(c, (int)(glow_a * (f64)(255/steps)));
-            f64 step = 1.0f / (double)steps;
-            for (f64 r = 1.0; r > 0.0; r -= step) {
-                ctx->setFillRadialGradient(p, 0.0, r * glow_r, c0, c1);
-                ctx->fillEllipse(p, r * glow_r);
+            auto drawParticle = [&](vec2 p, Color c, f64 glow_a, f64 particle_r, f64 glow_r, int steps=7)
+            {
+                Color c1 = Color(c, 0);
+                Color c0 = Color(c, (int)(glow_a * (f64)(255/steps)));
+                f64 step = 1.0f / (double)steps;
+                for (f64 r = 1.0; r > 0.0; r -= step) {
+                    ctx->setFillRadialGradient(p, 0.0, r * glow_r, c0, c1);
+                    ctx->fillEllipse(p, r * glow_r);
+                }
+
+                ctx->fillEllipse(p, particle_r, c);
+            };
+
+            auto _c = ctx->scopedComposite(CompositeOperation::LIGHTER);
+            drawParticle(sim_animation.particleA(), Color::red, 0.5, particle_r, glow_r);
+            drawParticle(sim_animation.particleB(), Color::green, 0.5, particle_r, glow_r);
+            drawParticle(sim_animation.particleC(), Color::yellow, 0.5, particle_r, glow_r);
+        }
+
+        if (mouse->viewport == ctx)
+        {
+            if (isRecording())
+            {
+                ctx->stageMode();
+                ctx->drawCursor(mouse->stage_x, mouse->stage_y);
             }
-
-            ctx->fillEllipse(p, particle_r, c);
-        };
-
-        auto _c = ctx->scopedComposite(CompositeOperation::LIGHTER);
-        drawParticle(sim_animation.particleA(), Color::red, 0.5, particle_r, glow_r);
-        drawParticle(sim_animation.particleB(), Color::green, 0.5, particle_r, glow_r);
-        drawParticle(sim_animation.particleC(), Color::yellow, 0.5, particle_r, glow_r);
+            else
+            {
+                ctx->worldHudMode();
+                ctx->fillEllipse((f64)mouse->world_x, (f64)mouse->world_y, 5.0);
+            }
+        }
     }
-
-    if (isRecording())
-    {
-        ctx->stageMode();
-        ctx->drawCursor(mouse->stage_x, mouse->stage_y);
-    }
-
-    ctx->worldHudMode();
-    ctx->fillEllipse((f64)mouse->world_x, (f64)mouse->world_y, 5.0);
 }
 
 void ThreeBodyProblem_Scene::onEvent(Event e)
@@ -271,6 +289,7 @@ void ThreeBodyProblem_Scene::onEvent(Event e)
 void ThreeBodyProblem_Scene::onPointerDown(PointerEvent e)
 {
     if (!ownsEvent(e)) return;
+    if (!interactive_enabled) return;
 
     if (!playingAnimation())
     {
@@ -298,6 +317,7 @@ void ThreeBodyProblem_Scene::onPointerDown(PointerEvent e)
 void ThreeBodyProblem_Scene::onPointerMove(PointerEvent e)
 {
     if (!ownsEvent(e)) return;
+    if (!interactive_enabled) return;
 
     if (!playingAnimation())
     {

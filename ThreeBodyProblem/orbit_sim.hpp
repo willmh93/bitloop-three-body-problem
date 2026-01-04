@@ -54,7 +54,7 @@ void SimPlot<T>::drawPath(Viewport* ctx, const std::vector<Vec2>& path, Color co
 
             for (int i = i0; i < i1; i += fade_step)
             {
-                f64 f = Math::lerpFactor((f64)i, fi0, fi1);
+                f64 f = math::lerpFactor((f64)i, fi0, fi1);
                 Color color(col.r, col.g, col.b, std::max(1, (int)(f * path_alpha)));
 
                 ctx->setLineWidth(path_w + (add_w) * f);

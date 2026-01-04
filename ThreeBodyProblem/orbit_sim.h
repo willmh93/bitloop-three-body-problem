@@ -58,7 +58,7 @@ public:
 template<class T>
 struct SimEnv
 {
-    static constexpr int max_dist = 50;// 5; // max dist from origin to be considered unstable
+    static constexpr int max_dist = 10;// 5; // max dist from origin to be considered unstable
 
     int escape_freq = 10; // how often we check for escape
     int max_iter;
@@ -221,9 +221,6 @@ public:
     StopResult stability() const      { return unstable_rule.stability(iter, a, b, c); }
     bool       escaped(int iter_lim)  { return iter >= (iter_lim - SimEnv::escape_freq); }
     int        curIter() const        { return iter; }
-               
-
-    //int run(const SimEnv& env);
 
     // plots a copy of itself (treats "this" as starting configuration)
     int plot(const SimEnv& env, SimPlot& plot) const;

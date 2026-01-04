@@ -9,6 +9,7 @@ file(GLOB SIM_SOURCES CONFIGURE_DEPENDS "ThreeBodyProblem/*.cpp" "ThreeBodyProbl
 
 # Create new project
 bitloop_new_project(ThreeBodyProblem ${SIM_SOURCES})
+bitloop_finalize()
 
 # fast math
 #if (NOT CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
@@ -20,8 +21,3 @@ bitloop_new_project(ThreeBodyProblem ${SIM_SOURCES})
 #else()
 #	target_compile_options(ThreeBodyProblem PRIVATE -O3 -flto -msimd128 -mrelaxed-simd -ffast-math -ffp-contract=fast -fno-math-errno)
 #endif()
-
-# Add dependency projects
-#bitloop_add_dependency(ThreeBodyProblem  "./path/to/project")
-
-bitloop_finalize()

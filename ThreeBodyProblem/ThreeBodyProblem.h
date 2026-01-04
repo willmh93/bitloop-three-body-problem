@@ -21,10 +21,10 @@ struct ThreeBodyProblem_Scene : public Scene<ThreeBodyProblem_Scene>
     //template<class T> using StopPolicy  = StopPolicy_Periodic<T>;
 
     static constexpr int vel_grid_size  = 5;
-    int iter_lim                        = 200000;
+    int iter_lim                        = 300000;
     flt G                               = 1.0f;
     flt max_vel                         = 1.0f;//1.0f;
-    flt dt = 0.02f;// 0.01f;//
+    flt dt = 0.02f;
     int animation_speed                 = 5;
 
     //static constexpr f64 particle_r = 0.0075;// 2.0;
@@ -48,6 +48,7 @@ struct ThreeBodyProblem_Scene : public Scene<ThreeBodyProblem_Scene>
 
     bool scanning = false;
     int current_row = 0;
+    bool interactive_enabled = true;
 
     std::vector<Sim>         results;
     std::vector<std::string> results_str;
@@ -101,9 +102,9 @@ struct ThreeBodyProblem_Scene : public Scene<ThreeBodyProblem_Scene>
     ~ThreeBodyProblem_Scene() {}
 
     /// ─────── Thread-safe UI for editing Scene inputs with ImGui ───────
-    struct UI : Interface
+    struct UI : ViewModel
     {
-        using Interface::Interface;
+        using ViewModel::ViewModel;
         void sidebar();
         //void overlay();
 
@@ -136,8 +137,8 @@ struct ThreeBodyProblem_Project : public Project<ThreeBodyProblem_Project>
         return ProjectInfo({ "Physics", "Three-Body Problem" });
     }
 
-    struct UI : Interface {
-        using Interface::Interface;
+    struct UI : ViewModel {
+        using ViewModel::ViewModel;
         void sidebar();
         //void overlay();
     };
