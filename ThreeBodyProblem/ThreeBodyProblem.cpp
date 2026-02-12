@@ -9,8 +9,8 @@ using namespace bl;
 
 void ThreeBodyProblem_Project::UI::sidebar()
 {
-    bl_scoped(viewport_count);
-    ImGui::SliderInt("Viewport Count", &viewport_count, 1, 8);
+    //bl_scoped(viewport_count);
+    //ImGui::SliderInt("Viewport Count", &viewport_count, 1, 8);
 }
 
 void ThreeBodyProblem_Project::projectPrepare(Layout& layout)
@@ -35,7 +35,7 @@ void ThreeBodyProblem_Scene::UI::sidebar()
         ImGui::EndCollapsingHeaderBox();
     }
 
-    if (ImGui::CollapsingHeaderBox("Animation"))
+    if (ImGui::CollapsingHeaderBox("Animation", true))
     {
         bl_scoped(animation_speed);
         ImGui::SliderInt("Animation Speed", &animation_speed, 1, 200);
@@ -47,12 +47,13 @@ void ThreeBodyProblem_Scene::UI::sidebar()
         if (ImGui::Button("Figure-Eight"))
         {
             bl_schedule([](ThreeBodyProblem_Scene& scene) {
+                scene.animation_speed = 1;
                 scene.launchPreset(
                     vec2(0, 0),
                     vec2((flt)0.347116889244505, (flt)0.532724944724257),
                     vec2((flt)0.347116889244505, (flt)0.532724944724257),
                     vec2((flt)-0.694233778489010, (flt)-1.065449889448514),
-                    0.0);
+                    0.0, 2);
             });
         }
         ImGui::EndCollapsingHeaderBox();
@@ -120,7 +121,7 @@ void ThreeBodyProblem_Scene::sceneMounted(Viewport* ctx)
 
     bmp.setCamera(camera);
 
-    current_plot.setPathAlpha(0.2);
+    current_plot.setFullPathAlpha(0.2);
 }
 
 void ThreeBodyProblem_Scene::sceneDestroy()
@@ -149,13 +150,12 @@ void ThreeBodyProblem_Scene::setCurrentSimFromResult(int index)
     setCurrentSim(results[index]);
 }
 
-void ThreeBodyProblem_Scene::launchPreset(vec2 c, vec2 vel_a, vec2 vel_b, vec2 vel_c, double path_alpha)
+void ThreeBodyProblem_Scene::launchPreset(vec2 c, vec2 vel_a, vec2 vel_b, vec2 vel_c, double path_alpha, int fade_step)
 {
-    current_plot.setPathAlpha(path_alpha);
     current_sim.setup(env, c, vel_a, vel_b, vel_c);
 
     setCurrentSim(current_sim);
-    startAnimation();
+    startAnimation(path_alpha, fade_step);
 }
 
 void ThreeBodyProblem_Scene::beginScan()
@@ -170,10 +170,14 @@ void ThreeBodyProblem_Scene::viewportProcess(
     [[maybe_unused]] Viewport* ctx,
     [[maybe_unused]] double dt)
 {
+    if (playingAnimation())
+        requestRedraw(true);
+
     int iw = (int)ctx->width();
     int ih = (int)ctx->height();
-    //bmp.setBitmapSize(iw, ih);
-    bmp.setBitmapSize(256, 256);
+
+    //bmp.setRasterSize(iw, ih);
+    bmp.setRasterSize(256, 256);
     bmp.setStageRect(0, 0, iw, ih);
 
     if (scanning)
@@ -224,6 +228,8 @@ void ThreeBodyProblem_Scene::viewportProcess(
         {
             scanning = false;
         }
+
+        requestRedraw(true);
     }
 }
 
@@ -242,7 +248,8 @@ void ThreeBodyProblem_Scene::viewportDraw(Viewport* ctx) const
 
         current_plot.draw(ctx, playingAnimation() ? sim_animation.curIter() : -1, particle_r, particle_r*3);
 
-        if (playingAnimation())
+
+        //if (playingAnimation())
         {
             auto drawParticle = [&](vec2 p, Color c, f64 glow_a, f64 particle_r, f64 glow_r, int steps=7)
             {
@@ -258,9 +265,19 @@ void ThreeBodyProblem_Scene::viewportDraw(Viewport* ctx) const
             };
 
             auto _c = ctx->scopedComposite(CompositeOperation::LIGHTER);
-            drawParticle(sim_animation.particleA(), Color::red, 0.5, particle_r, glow_r);
-            drawParticle(sim_animation.particleB(), Color::green, 0.5, particle_r, glow_r);
-            drawParticle(sim_animation.particleC(), Color::yellow, 0.5, particle_r, glow_r);
+            if (playingAnimation())
+            {
+                drawParticle(sim_animation.particleA(), Color::red, 0.5, particle_r, glow_r);
+                drawParticle(sim_animation.particleB(), Color::green, 0.5, particle_r, glow_r);
+                drawParticle(sim_animation.particleC(), Color::yellow, 0.5, particle_r, glow_r);
+            }
+            else
+            {
+                drawParticle(vec2{ -1,0 }, Color::red, 0.5, particle_r, glow_r);
+                drawParticle(vec2{ 1,0 }, Color::green, 0.5, particle_r, glow_r);
+                drawParticle(input_pos, Color::yellow, 0.5, particle_r, glow_r);
+
+            }
         }
 
         if (mouse->viewport == ctx)
@@ -270,25 +287,26 @@ void ThreeBodyProblem_Scene::viewportDraw(Viewport* ctx) const
                 ctx->stageMode();
                 ctx->drawCursor(mouse->stage_x, mouse->stage_y);
             }
-            else
-            {
-                ctx->worldHudMode();
-                ctx->fillEllipse((f64)mouse->world_x, (f64)mouse->world_y, 5.0);
-            }
+            //else
+            //{
+            //    ctx->worldHudMode();
+            //    ctx->fillEllipse((f64)mouse->world_x, (f64)mouse->world_y, 5.0);
+            //}
         }
     }
 }
 
 void ThreeBodyProblem_Scene::onEvent(Event e)
 {
-    if (!ownsEvent(e)) return;
+    if (!e.ownedBy(this)) 
+        return;
 
-    navigator.handleWorldNavigation(e, true);
+    if (navigator.handleWorldNavigation(e, true))
+        requestRedraw(true);
 }
 
 void ThreeBodyProblem_Scene::onPointerDown(PointerEvent e)
 {
-    if (!ownsEvent(e)) return;
     if (!interactive_enabled) return;
 
     if (!playingAnimation())
@@ -299,6 +317,8 @@ void ThreeBodyProblem_Scene::onPointerDown(PointerEvent e)
         SimGrid sims(env);
         sims.setup(pos);
         sims.run();
+
+        requestRedraw(true);
 
         //if (sims.bestStability() >= UNDETERMINED)
         if (sims.bestStability().type != StopResult::INVALID)
@@ -316,15 +336,20 @@ void ThreeBodyProblem_Scene::onPointerDown(PointerEvent e)
 
 void ThreeBodyProblem_Scene::onPointerMove(PointerEvent e)
 {
-    if (!ownsEvent(e)) return;
+    // if scene mounted to multiple viewports, prefer hovered viewport?
+    if (!e.hoveredOver(this))
+        return;
+
     if (!interactive_enabled) return;
+
+    requestRedraw(true);
 
     if (!playingAnimation())
     {
-        vec2 wp = camera.getTransform().toWorld<flt>(e.x(), e.y());
+        input_pos = camera.getTransform().toWorld<flt>(e.x(), e.y());
 
         SimGrid sims(env);
-        sims.setup(wp);
+        sims.setup(input_pos);
         sims.run();
 
         if (sims.bestStability().type != StopResult::INVALID)

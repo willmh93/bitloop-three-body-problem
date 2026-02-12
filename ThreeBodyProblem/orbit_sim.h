@@ -41,6 +41,7 @@ class SimPlot
 
     std::vector<Vec2> a_path, b_path, c_path;
     f64 path_alpha = 0.08;
+    int fade_step = 10;
 
     void drawPath(Viewport* ctx, const std::vector<Vec2>& path, Color col, int cur_iter, double path_w, double trail_w) const;
 
@@ -52,7 +53,8 @@ public:
     void recordPositions(const Vec2& a, const Vec2& b, const Vec2& c);
     void draw(Viewport* ctx, int cur_iter = -1, double path_w=2.0, double trail_w=6.0) const;
 
-    void setPathAlpha(f64 alpha) { path_alpha = alpha; }
+    void setFullPathAlpha(f64 alpha) { path_alpha = alpha; }
+    void setFadeStepIters(int iters) { fade_step = iters; }
 };
 
 template<class T>

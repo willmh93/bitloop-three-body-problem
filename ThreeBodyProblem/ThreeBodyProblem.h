@@ -44,7 +44,7 @@ struct ThreeBodyProblem_Scene : public Scene<ThreeBodyProblem_Scene>
    
     CameraInfo             camera;
     CameraNavigator        navigator;
-    CanvasImageBase<flt>   bmp;
+    WorldImageT<flt>       bmp;
 
     bool scanning = false;
     int current_row = 0;
@@ -58,6 +58,8 @@ struct ThreeBodyProblem_Scene : public Scene<ThreeBodyProblem_Scene>
     // on click, lock body C to mouse world-pos
     //vec2 chosen_point = undefined_pos;
     //Sim      chosen_sim;
+
+    vec2     input_pos{};
 
     SimEnv   env = SimEnv(G, max_vel, iter_lim, dt);
     Sim      current_sim;
@@ -81,18 +83,20 @@ struct ThreeBodyProblem_Scene : public Scene<ThreeBodyProblem_Scene>
         current_sim = sim; 
         current_sim.plot(env, current_plot);
     }
-    void startAnimation() { 
+    void startAnimation(double full_path_alpha=0.15, int fade_step=10) {
         sim_animation = current_sim; 
         sim_animating = true; 
-        current_plot.setPathAlpha(0.15);
+        current_plot.setFullPathAlpha(full_path_alpha);
+        current_plot.setFadeStepIters(fade_step);
     }
     void endAnimation() { 
         sim_animating = false; 
-        current_plot.setPathAlpha(0.2);
+        current_plot.setFullPathAlpha(0.2);
+        current_plot.setFadeStepIters(10);
     }
 
     void setCurrentSimFromResult(int index);
-    void launchPreset(vec2 c, vec2 vel_a, vec2 vel_b, vec2 vel_c, double path_alpha = 0.08);
+    void launchPreset(vec2 c, vec2 vel_a, vec2 vel_b, vec2 vel_c, double path_alpha = 0.08, int fade_step=10);
     void beginScan();
 
     /// ─────── launch config (overridable by Project) ───────
@@ -102,10 +106,10 @@ struct ThreeBodyProblem_Scene : public Scene<ThreeBodyProblem_Scene>
     ~ThreeBodyProblem_Scene() {}
 
     /// ─────── Thread-safe UI for editing Scene inputs with ImGui ───────
-    struct UI : ViewModel
+    struct UI : BufferedInterfaceModel
     {
-        using ViewModel::ViewModel;
-        void sidebar();
+        using BufferedInterfaceModel::BufferedInterfaceModel;
+        void sidebar() override;
         //void overlay();
 
         /// ─────── Your UI-only variables ───────
@@ -137,13 +141,13 @@ struct ThreeBodyProblem_Project : public Project<ThreeBodyProblem_Project>
         return ProjectInfo({ "Physics", "Three-Body Problem" });
     }
 
-    struct UI : ViewModel {
-        using ViewModel::ViewModel;
+    struct UI : BufferedInterfaceModel {
+        using BufferedInterfaceModel::BufferedInterfaceModel;
         void sidebar();
         //void overlay();
     };
 
-    int viewport_count = 1;
+    int viewport_count = 4;
 
     void projectPrepare(Layout& layout) override;
 };

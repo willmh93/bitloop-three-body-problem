@@ -37,13 +37,13 @@ void SimPlot<T>::drawPath(Viewport* ctx, const std::vector<Vec2>& path, Color co
     else
         ctx->strokePath(path);
 
-    constexpr int trail = 150;
+    constexpr int trail = 75;
     if (cur_iter > 1)
     {
         auto comp = ctx->scopedComposite(CompositeOperation::LIGHTER);
         auto drawTrail = [&](f64 max_w, f32 layer_alpha)
         {
-            constexpr int fade_step = 10;
+            //constexpr int fade_step = 10;
 
             int i0 = std::max(1, cur_iter - trail);
             int i1 = std::min((int)path.size(), cur_iter);
