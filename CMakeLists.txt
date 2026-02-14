@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.21)
 project(Mandelbrot LANGUAGES C CXX)
 include(CheckCXXCompilerFlag)
-include("${CMAKE_CURRENT_LIST_DIR}/tooling/cmake/findBitloop.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/tooling/findBitloop.cmake")
 
 
 # ---------------------------------  flags  ----------------------------------
