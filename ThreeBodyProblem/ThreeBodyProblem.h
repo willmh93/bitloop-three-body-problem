@@ -21,14 +21,12 @@ struct ThreeBodyProblem_Scene : public Scene<ThreeBodyProblem_Scene>
     //template<class T> using StopPolicy  = StopPolicy_Periodic<T>;
 
     static constexpr int vel_grid_size  = 4;
-    int iter_lim                        = 300000;
+    int iter_lim                        = 200000;
     flt G                               = 1.0f;
     flt max_vel                         = 1.0f;//1.0f;
     flt dt = 0.02f;
     int animation_speed                 = 5;
 
-    //static constexpr f64 particle_r = 0.0075;// 2.0;
-    //static constexpr f64 glow_r = 0.08;// 24.0;
     static constexpr f64 particle_r = 2.0;
     static constexpr f64 glow_r = 24.0;
 
